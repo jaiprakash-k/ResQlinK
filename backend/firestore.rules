@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return request.auth.token.email in ['admin1@example.com','admin2@example.com']; }
+
+    match /SOSMessages/{docId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn();
+      allow update, delete: if false; // immutable
+    }
+
+    match /ChatMessages/{docId} {
+      allow create: if isSignedIn() && (request.resource.data.fromUser == request.auth.uid || request.resource.data.toUser == request.auth.uid);
+      allow read: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Admin aggregate reads (not strictly needed if using backend admin SDK)
+    match /{document=**} {
+      allow read: if isAdmin();
+    }
+  }
+}
