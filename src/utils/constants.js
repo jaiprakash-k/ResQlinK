@@ -3,6 +3,7 @@ export const APP_CONFIG = {
   APP_NAME: 'ResQlinK',
   VERSION: '1.0.0',
   EMERGENCY_PHONE: '911',
+  BACKEND_URL: 'http://10.9.82.19:4000', // Updated to use port 4000 where server is running
 };
 
 // BLE Configuration

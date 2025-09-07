@@ -14,6 +14,7 @@ import locationService from '../services/locationService';
 import bleService from '../services/bleService';
 import wifiService from '../services/wifiService';
 import storageService from '../services/storageService';
+import firebaseService from '../services/firebaseService';
 
 const SOSScreen = ({ navigation }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -64,16 +65,64 @@ const SOSScreen = ({ navigation }) => {
       // Store the SOS message locally
       await storageService.addAlert(sosMessage);
 
+      let backendSent = false;
+      let bleSent = false;
+      let wifiSent = false;
+
+      // Try to send via backend API first
+      try {
+        if (firebaseService.isAuthenticated()) {
+          const user = firebaseService.getUser();
+          await firebaseService.pushSOS({
+            userId: user?.uid || 'anonymous',
+            lat: currentLocation.latitude,
+            lng: currentLocation.longitude,
+            message: sosMessage.message,
+            timestamp: sosMessage.timestamp,
+          });
+          backendSent = true;
+          console.log('SOS sent to backend successfully');
+        } else {
+          // Try anonymous login if not authenticated
+          await firebaseService.anonymousLogin();
+          const user = firebaseService.getUser();
+          await firebaseService.pushSOS({
+            userId: user?.uid || 'anonymous',
+            lat: currentLocation.latitude,
+            lng: currentLocation.longitude,
+            message: sosMessage.message,
+            timestamp: sosMessage.timestamp,
+          });
+          backendSent = true;
+          console.log('SOS sent to backend after anonymous login');
+        }
+      } catch (backendError) {
+        console.error('Backend SOS failed:', backendError);
+      }
+
       // Send via Bluetooth
-      const bleSent = await bleService.broadcastMessage(sosMessage);
+      try {
+        bleSent = await bleService.broadcastMessage(sosMessage);
+      } catch (bleError) {
+        console.error('BLE SOS failed:', bleError);
+      }
       
       // Send via Wi-Fi mesh
-      const wifiSent = await wifiService.broadcastMessage(sosMessage);
+      try {
+        wifiSent = await wifiService.broadcastMessage(sosMessage);
+      } catch (wifiError) {
+        console.error('WiFi SOS failed:', wifiError);
+      }
 
-      if (bleSent || wifiSent) {
+      if (backendSent || bleSent || wifiSent) {
+        const methods = [];
+        if (backendSent) methods.push('server');
+        if (bleSent) methods.push('Bluetooth');
+        if (wifiSent) methods.push('Wi-Fi');
+        
         Alert.alert(
           'SOS Sent',
-          'Your emergency SOS has been sent to nearby devices.',
+          `Your emergency SOS has been sent via: ${methods.join(', ')}.`,
           [
             {
               text: 'OK',
@@ -84,7 +133,7 @@ const SOSScreen = ({ navigation }) => {
       } else {
         Alert.alert(
           'SOS Stored',
-          'Your SOS message has been stored locally. It will be sent when devices are available.',
+          'Your SOS message has been stored locally. It will be sent when network connection is available.',
           [
             {
               text: 'OK',

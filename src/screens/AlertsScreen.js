@@ -10,6 +10,8 @@ import { TEST_DATA, MESSAGE_TYPES, EMERGENCY_LEVELS } from '../utils/constants';
 import AlertList from '../components/AlertList';
 import EmergencyButton from '../components/EmergencyButton';
 import storageService from '../services/storageService';
+import firebaseService from '../services/firebaseService';
+import locationService from '../services/locationService';
 
 const AlertsScreen = ({ navigation }) => {
   const [alerts, setAlerts] = useState([]);
@@ -21,20 +23,68 @@ const AlertsScreen = ({ navigation }) => {
 
   const loadAlerts = async () => {
     try {
-      // Load alerts from storage
-      const storedAlerts = await storageService.getAlerts();
+      let allAlerts = [];
       
-      // If no stored alerts, use test data
-      if (storedAlerts.length === 0) {
+      // Load alerts from local storage first
+      const storedAlerts = await storageService.getAlerts();
+      allAlerts = [...storedAlerts];
+      
+      // Try to fetch nearby SOS alerts from backend
+      try {
+        if (firebaseService.isAuthenticated()) {
+          const location = await locationService.getCurrentLocation();
+          const nearbyAlerts = await firebaseService.fetchNearbySOS({
+            lat: location.latitude,
+            lng: location.longitude,
+            radius: 10, // 10km radius
+          });
+          
+          // Convert backend format to our alert format
+          const formattedAlerts = nearbyAlerts.map(alert => ({
+            id: alert.id,
+            type: MESSAGE_TYPES.SOS,
+            level: EMERGENCY_LEVELS.CRITICAL,
+            message: alert.message,
+            location: { latitude: alert.lat, longitude: alert.lng },
+            timestamp: alert.timestamp,
+            sender: alert.userId,
+            distance: calculateDistance(location, { latitude: alert.lat, longitude: alert.lng }),
+          }));
+          
+          allAlerts = [...allAlerts, ...formattedAlerts];
+        }
+      } catch (backendError) {
+        console.error('Failed to fetch from backend:', backendError);
+      }
+      
+      // If no alerts at all, use test data
+      if (allAlerts.length === 0) {
         setAlerts(TEST_DATA.SAMPLE_ALERTS);
       } else {
-        setAlerts(storedAlerts);
+        // Remove duplicates and sort by timestamp
+        const uniqueAlerts = allAlerts.filter((alert, index, self) => 
+          index === self.findIndex(a => a.id === alert.id)
+        );
+        uniqueAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setAlerts(uniqueAlerts);
       }
     } catch (error) {
       console.error('Error loading alerts:', error);
       // Fallback to test data
       setAlerts(TEST_DATA.SAMPLE_ALERTS);
     }
+  };
+
+  const calculateDistance = (pos1, pos2) => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (pos2.latitude - pos1.latitude) * Math.PI / 180;
+    const dLon = (pos2.longitude - pos1.longitude) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(pos1.latitude * Math.PI / 180) * Math.cos(pos2.latitude * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c;
+    return `${distance.toFixed(1)} km`;
   };
 
   const handleRefresh = async () => {

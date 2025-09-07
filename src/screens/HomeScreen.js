@@ -14,11 +14,14 @@ import StatusIndicator from '../components/StatusIndicator';
 import bleService from '../services/bleService';
 import wifiService from '../services/wifiService';
 import locationService from '../services/locationService';
+import firebaseService from '../services/firebaseService';
+import deviceSettingsService from '../services/deviceSettingsService';
 
 const HomeScreen = ({ navigation }) => {
   const [bleStatus, setBleStatus] = useState('disconnected');
   const [wifiStatus, setWifiStatus] = useState('offline');
   const [locationStatus, setLocationStatus] = useState('inactive');
+  const [apiStatus, setApiStatus] = useState('offline');
 
   useEffect(() => {
     initializeServices();
@@ -29,28 +32,95 @@ const HomeScreen = ({ navigation }) => {
 
   const initializeServices = async () => {
     try {
-      // Initialize BLE
-      const bleInitialized = await bleService.initialize();
-      setBleStatus(bleInitialized ? 'connected' : 'disconnected');
+      // Initialize API service
+      const apiInitialized = await firebaseService.initialize();
+      setApiStatus(apiInitialized ? 'online' : 'offline');
 
-      // Initialize Wi-Fi
-      const wifiInitialized = await wifiService.initialize();
-      setWifiStatus(wifiInitialized ? 'online' : 'offline');
+      // Initialize device settings and get current statuses
+      const deviceStatuses = await deviceSettingsService.initialize();
+      setBleStatus(deviceStatuses.bluetooth ? 'connected' : 'disconnected');
+      setWifiStatus(deviceStatuses.wifi ? 'online' : 'offline');
+      setLocationStatus(deviceStatuses.location ? 'active' : 'inactive');
 
-      // Initialize Location (guard against missing method)
-      let locationInitialized = false;
+      // Initialize BLE service
+      try {
+        const bleInitialized = await bleService.initialize();
+        if (!deviceStatuses.bluetooth) {
+          setBleStatus('disconnected');
+        } else {
+          setBleStatus(bleInitialized ? 'connected' : 'disconnected');
+        }
+      } catch (err) {
+        console.error('Error initializing BLE service:', err);
+        setBleStatus('disconnected');
+      }
+
+      // Initialize Wi-Fi service
+      try {
+        const wifiInitialized = await wifiService.initialize();
+        if (!deviceStatuses.wifi) {
+          setWifiStatus('offline');
+        } else {
+          setWifiStatus(wifiInitialized ? 'online' : 'offline');
+        }
+      } catch (err) {
+        console.error('Error initializing WiFi service:', err);
+        setWifiStatus('offline');
+      }
+
+      // Initialize Location service
       try {
         if (locationService && typeof locationService.initialize === 'function') {
-          locationInitialized = await locationService.initialize();
+          const locationInitialized = await locationService.initialize();
+          if (!deviceStatuses.location) {
+            setLocationStatus('inactive');
+          } else {
+            setLocationStatus(locationInitialized ? 'active' : 'inactive');
+          }
         } else {
           console.warn('locationService.initialize is not available');
+          setLocationStatus(deviceStatuses.location ? 'active' : 'inactive');
         }
       } catch (err) {
         console.error('Error initializing locationService:', err);
+        setLocationStatus('inactive');
       }
-      setLocationStatus(locationInitialized ? 'active' : 'inactive');
     } catch (error) {
       console.error('Error initializing services:', error);
+    }
+  };
+
+  // Toggle functions for device settings
+  const handleBluetoothToggle = async () => {
+    try {
+      setBleStatus('connecting');
+      const newStatus = await deviceSettingsService.toggleBluetooth();
+      setBleStatus(newStatus ? 'connected' : 'disconnected');
+    } catch (error) {
+      console.error('Error toggling Bluetooth:', error);
+      setBleStatus('disconnected');
+    }
+  };
+
+  const handleWifiToggle = async () => {
+    try {
+      setWifiStatus('loading');
+      const newStatus = await deviceSettingsService.toggleWifi();
+      setWifiStatus(newStatus ? 'online' : 'offline');
+    } catch (error) {
+      console.error('Error toggling WiFi:', error);
+      setWifiStatus('offline');
+    }
+  };
+
+  const handleLocationToggle = async () => {
+    try {
+      setLocationStatus('loading');
+      const newStatus = await deviceSettingsService.toggleLocation();
+      setLocationStatus(newStatus ? 'active' : 'inactive');
+    } catch (error) {
+      console.error('Error toggling Location:', error);
+      setLocationStatus('inactive');
     }
   };
 
@@ -97,19 +167,27 @@ const HomeScreen = ({ navigation }) => {
         {/* Status Indicators */}
         <View style={styles.statusContainer}>
           <StatusIndicator
-            status={bleStatus}
-            label="Bluetooth"
+            status={apiStatus}
+            label="API Server"
             size="small"
           />
           <StatusIndicator
-            status={wifiStatus}
-            label="Wi-Fi Mesh"
+            status={bleStatus}
+            label="Bluetooth"
             size="small"
+            onPress={handleBluetoothToggle}
+          />
+          <StatusIndicator
+            status={wifiStatus}
+            label="Wi-Fi"
+            size="small"
+            onPress={handleWifiToggle}
           />
           <StatusIndicator
             status={locationStatus}
             label="Location"
             size="small"
+            onPress={handleLocationToggle}
           />
         </View>
 

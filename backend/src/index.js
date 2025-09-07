@@ -27,4 +27,12 @@ app.use(notFound);
 app.use(errorHandler);
 
 const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`ResQlinK backend listening on :${port}`));
+const host = process.env.HOST || '0.0.0.0'; // Listen on all network interfaces
+
+app.listen(port, host, () => {
+  console.log(`ResQlinK backend listening on ${host}:${port}`);
+  console.log('Server accessible from:');
+  console.log(`- Local: http://localhost:${port}`);
+  console.log(`- Network: http://10.9.82.19:${port}`);
+  console.log('Make sure Windows Firewall allows Node.js if connecting from mobile device');
+});
