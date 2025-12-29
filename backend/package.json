@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "NODE_ENV=production node src/index.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "clean": "rm -rf node_modules logs && find . -name '*.log' -type f -delete"
   },
   "dependencies": {
     "body-parser": "^1.20.2",

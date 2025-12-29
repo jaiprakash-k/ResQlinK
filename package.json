@@ -7,7 +7,9 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "clean": "rm -rf node_modules ios/Pods ios/build ios/DerivedData android/build android/.gradle && find . -name '.DS_Store' -type f -delete && find . -name '*.log' -type f -delete",
+    "clean:deep": "npm run clean && rm -rf backend/node_modules backend/logs && (cd backend && find . -name '*.log' -type f -delete)"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.24.0",

@@ -73,3 +73,20 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# VS Code
+.vscode/
+.history/
+
+# Backend (Node)
+backend/node_modules/
+backend/logs/
+backend/tmp/
+backend/*.log
+backend/coverage/
+backend/.env
+backend/.env.*
+
+# Env files (root)
+.env
+.env.*
